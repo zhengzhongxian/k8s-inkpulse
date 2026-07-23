@@ -18,7 +18,7 @@ kind: Deployment
 metadata:
   name: ai-deployment
 spec:
-  replicas: 1
+  replicas: 2
   selector:
     matchLabels:
       app: ai-core
@@ -51,11 +51,11 @@ spec:
               key: redis-password
         resources:
           requests:
-            memory: "128Mi"
-            cpu: "50m"
+            memory: "512Mi"
+            cpu: "250m"
           limits:
-            memory: "256Mi"
-            cpu: "500m"
+            memory: "1536Mi"
+            cpu: "1500m"
         readinessProbe:
           tcpSocket:
             port: 8000

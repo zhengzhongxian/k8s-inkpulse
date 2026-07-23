@@ -1,0 +1,134 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-headless
+spec:
+  clusterIP: None
+  selector:
+    app: postgres
+  ports:
+  - port: 5432
+    name: postgres
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-read
+spec:
+  clusterIP: 10.96.100.10
+  selector:
+    app: postgres
+  ports:
+  - port: 5432
+    targetPort: 5432
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-write
+spec:
+  clusterIP: 10.96.100.20
+  selector:
+    app: postgres
+    statefulset.kubernetes.io/pod-name: postgres-0
+  ports:
+  - port: 5432
+    targetPort: 5432
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres
+spec:
+  serviceName: postgres-headless
+  replicas: 2
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      initContainers:
+      - name: init-postgres-replica
+        image: postgres:15-alpine
+        env:
+        - name: PGPASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: enterprise-secrets
+              key: postgres-replica-password
+        command:
+        - sh
+        - -c
+        - |
+          POD_INDEX=${HOSTNAME##*-}
+          PGDATA_DIR="/var/lib/postgresql/data/pgdata"
+          
+          if [ "$POD_INDEX" -eq "0" ]; then
+            echo "Tao là Master (postgres-0). Không cần kéo data mới, nhường sân!"
+            exit 0
+          fi
+          
+          echo "Tao là Slave (postgres-$POD_INDEX). Đang chờ Master mở cổng kết nối..."
+          until pg_isready -h postgres-0.postgres-headless -p 5432; do
+            sleep 2
+          done
+          
+          if [ ! -s "$PGDATA_DIR/PG_VERSION" ]; then
+            echo "Thư mục rỗng. Tiến hành kéo bản sao dữ liệu (pg_basebackup) từ Master..."
+            rm -rf "$PGDATA_DIR"/*
+            pg_basebackup -h postgres-0.postgres-headless -D "$PGDATA_DIR" -U replicator -v -P -X stream -R
+          fi
+        volumeMounts:
+        - name: pg-data
+          mountPath: /var/lib/postgresql/data
+      containers:
+      - name: postgres
+        image: postgres:15-alpine
+        env:
+        - name: POSTGRES_DB
+          value: enterprise_db
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: enterprise-secrets
+              key: postgres-password
+        - name: PGDATA
+          value: /var/lib/postgresql/data/pgdata
+        ports:
+        - containerPort: 5432
+          name: postgres
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "1Gi"
+            cpu: "1000m"
+        volumeMounts:
+        - name: pg-data
+          mountPath: /var/lib/postgresql/data
+        lifecycle:
+          postStart:
+            exec:
+              command:
+              - sh
+              - -c
+              - |
+                POD_INDEX=${HOSTNAME##*-}
+                if [ "$POD_INDEX" -eq "0" ]; then
+                  until psql -U postgres -c "SELECT 1" > /dev/null 2>&1; do sleep 1; done
+                  psql -U postgres -c "CREATE ROLE replicator WITH REPLICATION LOGIN PASSWORD 'ReplicaSecret123';"
+                  echo "host replication all all trust" >> /var/lib/postgresql/data/pgdata/pg_hba.conf
+                  psql -U postgres -c "SELECT pg_reload_conf();"
+                fi
+  volumeClaimTemplates:
+  - metadata:
+      name: pg-data
+    spec:
+      accessModes: ["ReadWriteOnce"]
+      resources:
+        requests:
+          storage: 10Gi
