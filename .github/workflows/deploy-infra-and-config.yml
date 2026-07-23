@@ -56,7 +56,18 @@ jobs:
           update_configmap_if_changed "ai-config" "config.yaml" "${{ secrets.CONFIG_AI_YAML }}" "ai-deployment"
           update_configmap_if_changed "inkpulse-worker-config" "appsettings.json" "${{ secrets.CONFIG_APPSETTINGS_JSON }}" "worker-deployment"
 
-          # 3. Apply Secrets, RabbitMQ Operator, Infrastructure, Apps, Ingress, and Logging
+          # 3. Auto-install NGINX Ingress Controller if not present on GKE
+          if ! kubectl get ns ingress-nginx >/dev/null 2>&1; then
+            echo "⚡ Installing NGINX Ingress Controller on GKE..."
+            kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.10.0/deploy/static/provider/cloud/deploy.yaml
+            echo "⏳ Waiting for NGINX Ingress Controller to be ready..."
+            kubectl wait --namespace ingress-nginx \
+              --for=condition=ready pod \
+              --selector=app.kubernetes.io/component=controller \
+              --timeout=120s || true
+          fi
+
+          # 4. Apply Secrets, RabbitMQ Operator, Infrastructure, Apps, Ingress, and Logging
           if [ -d "secrets" ]; then kubectl apply -f secrets/ || true; fi
           if [ -f "rabbitmq/cluster-operator.yaml" ]; then
             echo "⚡ Deploying RabbitMQ Cluster Operator..."
