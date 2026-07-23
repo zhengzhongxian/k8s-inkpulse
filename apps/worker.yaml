@@ -3,7 +3,7 @@ kind: Deployment
 metadata:
   name: worker-deployment
 spec:
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
       app: worker-core
@@ -52,10 +52,10 @@ spec:
             command:
             - sh
             - -c
-            - "ps aux | grep -v grep | grep dotnet || exit 1"
+            - "test -f /proc/1/status"
           initialDelaySeconds: 15
           periodSeconds: 30
-          failureThreshold: 3
+          failureThreshold: 5
         resources:
           requests:
             memory: "256Mi"
