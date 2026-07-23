@@ -1,0 +1,51 @@
+name: Deploy K8s Infrastructure & Configs
+
+on:
+  push:
+    branches: [ main, master ]
+
+jobs:
+  deploy-infra:
+    name: ⚡ Deploy K8s Infrastructure Manifests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Kubeconfig
+        run: |
+          mkdir -p ~/.kube
+          echo "${{ secrets.KUBE_CONFIG }}" > ~/.kube/config
+
+      - name: Apply Secrets & ConfigMaps From GitHub Secrets
+        run: |
+          # 1. Apply Enterprise Secrets if defined in GitHub Secrets
+          if [ -n "${{ secrets.ENTERPRISE_SECRETS_YAML }}" ]; then
+            echo "${{ secrets.ENTERPRISE_SECRETS_YAML }}" | kubectl apply -f -
+          elif [ -f secrets/enterprise-secrets.yaml ]; then
+            kubectl apply -f secrets/enterprise-secrets.yaml
+          fi
+
+          # 2. Dynamically create ConfigMaps from GitHub Secrets if present
+          if [ -n "${{ secrets.CONFIG_APPLICATION_YML }}" ]; then
+            echo "${{ secrets.CONFIG_APPLICATION_YML }}" | kubectl create configmap inkpulse-config --from-file=application.yml=/dev/stdin -o yaml | kubectl apply -f -
+          fi
+
+          if [ -n "${{ secrets.CONFIG_AI_YAML }}" ]; then
+            echo "${{ secrets.CONFIG_AI_YAML }}" | kubectl create configmap ai-config --from-file=config.yaml=/dev/stdin -o yaml | kubectl apply -f -
+          fi
+
+          if [ -n "${{ secrets.CONFIG_APPSETTINGS_JSON }}" ]; then
+            echo "${{ secrets.CONFIG_APPSETTINGS_JSON }}" | kubectl create configmap inkpulse-worker-config --from-file=appsettings.json=/dev/stdin -o yaml | kubectl apply -f -
+          fi
+
+          # 3. Apply Apps, Infra, and Ingress manifests
+          kubectl apply -f infra/ || true
+          kubectl apply -f apps/ || true
+          kubectl apply -f ingress/ || true
+
+          # 4. Instant Rollout Restart to force Pods to load updated ConfigMaps
+          kubectl rollout restart deployment/backend-deployment || true
+          kubectl rollout restart deployment/ai-deployment || true
+          kubectl rollout restart deployment/worker-deployment || true

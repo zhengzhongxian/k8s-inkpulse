@@ -1,0 +1,57 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: worker-deployment
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: worker-core
+  template:
+    metadata:
+      labels:
+        app: worker-core
+    spec:
+      containers:
+      - name: app
+        image: ghcr.io/zhengzhongxian/inkpulse-worker:latest
+        imagePullPolicy: Always
+        env:
+        - name: RabbitMQ__Username
+          valueFrom:
+            secretKeyRef:
+              name: rabbitmq-service-default-user
+              key: username
+        - name: RabbitMQ__Password
+          valueFrom:
+            secretKeyRef:
+              name: rabbitmq-service-default-user
+              key: password
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: enterprise-secrets
+              key: postgres-password
+        - name: ConnectionStrings__DefaultConnection
+          value: "Host=postgres-0.postgres-headless.default.svc.cluster.local;Port=5432;Database=enterprise_db;Username=postgres;Password=$(DB_PASSWORD)"
+        - name: REDIS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: enterprise-secrets
+              key: redis-password
+        - name: Cache__Redis
+          value: "redis-0.redis-headless.default.svc.cluster.local:6379,password=$(REDIS_PASSWORD)"
+        - name: DOTNET_SYSTEM_CONSOLE_ALLOW_ANSI_COLOR_REDIRECTION
+          value: "1"
+        volumeMounts:
+        - name: config-volume
+          mountPath: /app/config/appsettings.json
+          subPath: appsettings.json
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "50m"
+      volumes:
+      - name: config-volume
+        configMap:
+          name: inkpulse-worker-config

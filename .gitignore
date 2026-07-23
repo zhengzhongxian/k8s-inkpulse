@@ -1,0 +1,9 @@
+# Ignore secret & raw config files containing plain-text keys/passwords
+secrets/enterprise-secrets.yaml
+config/application.yml
+config/ai-config.yaml
+config/appsettings.json
+*.key
+*.pem
+*.env
+.DS_Store
