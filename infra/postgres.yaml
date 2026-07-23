@@ -15,7 +15,6 @@ kind: Service
 metadata:
   name: postgres-read
 spec:
-  clusterIP: 10.96.100.10
   selector:
     app: postgres
   ports:
@@ -27,7 +26,6 @@ kind: Service
 metadata:
   name: postgres-write
 spec:
-  clusterIP: 10.96.100.20
   selector:
     app: postgres
     statefulset.kubernetes.io/pod-name: postgres-0
