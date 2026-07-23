@@ -74,6 +74,8 @@ data:
         Match           *
         Host            elasticsearch-service.default.svc.cluster.local
         Port            9200
+        HTTP_User       elastic
+        HTTP_Passwd     ElasticSecret123
         Logstash_Format On
         Logstash_Prefix k8s-logs
         Time_Key        @timestamp
