@@ -61,7 +61,7 @@ jobs:
 
             if [ "$old_hash" != "$new_hash" ]; then
               echo "⚡ ConfigMap $cm_name changed! Updating & restarting $deploy_name..."
-              echo "$new_content" | kubectl create configmap "$cm_name" --from-file="${key_name}=/dev/stdin" -o yaml | kubectl apply -f -
+              echo "$new_content" | kubectl create configmap "$cm_name" --from-file="${key_name}=/dev/stdin" --dry-run=client -o yaml | kubectl apply -f -
               kubectl rollout restart "deployment/$deploy_name" || true
             else
               echo "✅ [SKIP] ConfigMap $cm_name has no meaningful changes (CRLF/whitespace ignored)."
