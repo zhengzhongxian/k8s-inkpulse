@@ -30,6 +30,11 @@ jobs:
             --project renticar-478014
 
       - name: Smart ConfigMaps & Infrastructure Apply
+        env:
+          ENTERPRISE_SECRETS_YAML: ${{ secrets.ENTERPRISE_SECRETS_YAML }}
+          CONFIG_APPLICATION_YML: ${{ secrets.CONFIG_APPLICATION_YML }}
+          CONFIG_AI_YAML: ${{ secrets.CONFIG_AI_YAML }}
+          CONFIG_APPSETTINGS_JSON: ${{ secrets.CONFIG_APPSETTINGS_JSON }}
         run: |
           # Smart normalization helper function (ignores CRLF/LF & trailing whitespace)
           normalize_hash() {
@@ -37,8 +42,8 @@ jobs:
           }
 
           # 1. Apply Enterprise Secrets if defined
-          if [ -n "${{ secrets.ENTERPRISE_SECRETS_YAML }}" ]; then
-            echo "${{ secrets.ENTERPRISE_SECRETS_YAML }}" | kubectl apply -f -
+          if [ -n "$ENTERPRISE_SECRETS_YAML" ]; then
+            echo "$ENTERPRISE_SECRETS_YAML" | kubectl apply -f -
           fi
 
           # 2. Smart ConfigMap Updates (only restart if meaningful changes detected)
@@ -63,9 +68,9 @@ jobs:
             fi
           }
 
-          update_configmap_if_changed "inkpulse-config" "application.yml" "${{ secrets.CONFIG_APPLICATION_YML }}" "backend-deployment"
-          update_configmap_if_changed "ai-config" "config.yaml" "${{ secrets.CONFIG_AI_YAML }}" "ai-deployment"
-          update_configmap_if_changed "inkpulse-worker-config" "appsettings.json" "${{ secrets.CONFIG_APPSETTINGS_JSON }}" "worker-deployment"
+          update_configmap_if_changed "inkpulse-config" "application.yml" "$CONFIG_APPLICATION_YML" "backend-deployment"
+          update_configmap_if_changed "ai-config" "config.yaml" "$CONFIG_AI_YAML" "ai-deployment"
+          update_configmap_if_changed "inkpulse-worker-config" "appsettings.json" "$CONFIG_APPSETTINGS_JSON" "worker-deployment"
 
           # 3. Auto-install NGINX Ingress Controller if not present on GKE
           if ! kubectl get ns ingress-nginx >/dev/null 2>&1; then
