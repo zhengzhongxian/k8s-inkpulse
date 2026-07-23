@@ -67,14 +67,15 @@ spec:
         readinessProbe:
           tcpSocket:
             port: 8080
-          initialDelaySeconds: 30
-          periodSeconds: 10
+          initialDelaySeconds: 15
+          periodSeconds: 5
+          failureThreshold: 12
         livenessProbe:
           tcpSocket:
             port: 8080
           initialDelaySeconds: 60
-          periodSeconds: 15
-          failureThreshold: 3
+          periodSeconds: 10
+          failureThreshold: 6
         resources:
           requests:
             memory: "512Mi"
