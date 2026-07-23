@@ -18,34 +18,45 @@ jobs:
           mkdir -p ~/.kube
           echo "${{ secrets.KUBE_CONFIG }}" > ~/.kube/config
 
-      - name: Apply Secrets & ConfigMaps From GitHub Secrets
+      - name: Smart ConfigMaps & Infrastructure Apply
         run: |
-          # 1. Apply Enterprise Secrets if defined in GitHub Secrets
+          # Smart normalization helper function (ignores CRLF/LF & trailing whitespace)
+          normalize_hash() {
+            echo "$1" | tr -d '\r' | sed -e 's/[[:space:]]*$//' -e '/^$/d' | sha256sum | awk '{print $1}'
+          }
+
+          # 1. Apply Enterprise Secrets if defined
           if [ -n "${{ secrets.ENTERPRISE_SECRETS_YAML }}" ]; then
             echo "${{ secrets.ENTERPRISE_SECRETS_YAML }}" | kubectl apply -f -
-          elif [ -f secrets/enterprise-secrets.yaml ]; then
-            kubectl apply -f secrets/enterprise-secrets.yaml
           fi
 
-          # 2. Dynamically create ConfigMaps from GitHub Secrets if present
-          if [ -n "${{ secrets.CONFIG_APPLICATION_YML }}" ]; then
-            echo "${{ secrets.CONFIG_APPLICATION_YML }}" | kubectl create configmap inkpulse-config --from-file=application.yml=/dev/stdin -o yaml | kubectl apply -f -
-          fi
+          # 2. Smart ConfigMap Updates (only restart if meaningful changes detected)
+          update_configmap_if_changed() {
+            local cm_name="$1"
+            local key_name="$2"
+            local new_content="$3"
+            local deploy_name="$4"
 
-          if [ -n "${{ secrets.CONFIG_AI_YAML }}" ]; then
-            echo "${{ secrets.CONFIG_AI_YAML }}" | kubectl create configmap ai-config --from-file=config.yaml=/dev/stdin -o yaml | kubectl apply -f -
-          fi
+            if [ -z "$new_content" ]; then return 0; fi
 
-          if [ -n "${{ secrets.CONFIG_APPSETTINGS_JSON }}" ]; then
-            echo "${{ secrets.CONFIG_APPSETTINGS_JSON }}" | kubectl create configmap inkpulse-worker-config --from-file=appsettings.json=/dev/stdin -o yaml | kubectl apply -f -
-          fi
+            local old_content=$(kubectl get configmap "$cm_name" -o jsonpath="{.data.${key_name}}" 2>/dev/null || echo "")
+            local old_hash=$(normalize_hash "$old_content")
+            local new_hash=$(normalize_hash "$new_content")
+
+            if [ "$old_hash" != "$new_hash" ]; then
+              echo "⚡ ConfigMap $cm_name changed! Updating & restarting $deploy_name..."
+              echo "$new_content" | kubectl create configmap "$cm_name" --from-file="${key_name}=/dev/stdin" -o yaml | kubectl apply -f -
+              kubectl rollout restart "deployment/$deploy_name" || true
+            else
+              echo "✅ [SKIP] ConfigMap $cm_name has no meaningful changes (CRLF/whitespace ignored)."
+            fi
+          }
+
+          update_configmap_if_changed "inkpulse-config" "application.yml" "${{ secrets.CONFIG_APPLICATION_YML }}" "backend-deployment"
+          update_configmap_if_changed "ai-config" "config.yaml" "${{ secrets.CONFIG_AI_YAML }}" "ai-deployment"
+          update_configmap_if_changed "inkpulse-worker-config" "appsettings.json" "${{ secrets.CONFIG_APPSETTINGS_JSON }}" "worker-deployment"
 
           # 3. Apply Apps, Infra, and Ingress manifests
           kubectl apply -f infra/ || true
           kubectl apply -f apps/ || true
           kubectl apply -f ingress/ || true
-
-          # 4. Instant Rollout Restart to force Pods to load updated ConfigMaps
-          kubectl rollout restart deployment/backend-deployment || true
-          kubectl rollout restart deployment/ai-deployment || true
-          kubectl rollout restart deployment/worker-deployment || true
