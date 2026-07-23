@@ -60,3 +60,35 @@ jobs:
           kubectl apply -f infra/ || true
           kubectl apply -f apps/ || true
           kubectl apply -f ingress/ || true
+
+      - name: 🔔 Send Discord Notification
+        if: always()
+        run: |
+          if [ -z "${{ secrets.DISCORD_WEBHOOK }}" ]; then
+            echo "⚠️ DISCORD_WEBHOOK secret not found. Skipping notification."
+            exit 0
+          fi
+
+          if [ "${{ job.status }}" = "success" ]; then
+            COLOR=3066993
+            TITLE="🚀 K8s Infrastructure & Configs Deploy Successful!"
+          else
+            COLOR=15158332
+            TITLE="❌ K8s Infrastructure & Configs Deploy Failed!"
+          fi
+
+          curl -H "Content-Type: application/json" \
+            -X POST \
+            -d "{
+              \"embeds\": [{
+                \"title\": \"$TITLE\",
+                \"color\": $COLOR,
+                \"fields\": [
+                  {\"name\": \"Repository\", \"value\": \"${{ github.repository }}\", \"inline\": true},
+                  {\"name\": \"Branch\", \"value\": \"${{ github.ref_name }}\", \"inline\": true},
+                  {\"name\": \"Author\", \"value\": \"${{ github.actor }}\", \"inline\": true},
+                  {\"name\": \"Commit\", \"value\": \"${{ github.event.head_commit.message }}\"}
+                ],
+                \"footer\": {\"text\": \"InkPulse CI/CD Bot\"}
+              }]
+            }" ${{ secrets.DISCORD_WEBHOOK }}

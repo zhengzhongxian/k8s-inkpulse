@@ -47,6 +47,15 @@ spec:
         - name: config-volume
           mountPath: /app/config/appsettings.json
           subPath: appsettings.json
+        livenessProbe:
+          exec:
+            command:
+            - sh
+            - -c
+            - "ps aux | grep -v grep | grep dotnet || exit 1"
+          initialDelaySeconds: 15
+          periodSeconds: 30
+          failureThreshold: 3
         resources:
           requests:
             memory: "128Mi"
