@@ -56,9 +56,14 @@ jobs:
           update_configmap_if_changed "ai-config" "config.yaml" "${{ secrets.CONFIG_AI_YAML }}" "ai-deployment"
           update_configmap_if_changed "inkpulse-worker-config" "appsettings.json" "${{ secrets.CONFIG_APPSETTINGS_JSON }}" "worker-deployment"
 
-          # 3. Apply Infrastructure, RabbitMQ Operator, RabbitMQ Cluster, Apps, Ingress, and Logging
-          if [ -f "rabbitmq/cluster-operator.yaml" ]; then kubectl apply -f rabbitmq/cluster-operator.yaml || true; fi
-          if [ -d "rabbitmq" ]; then kubectl apply -f rabbitmq/ || true; fi
+          # 3. Apply Secrets, RabbitMQ Operator, Infrastructure, Apps, Ingress, and Logging
+          if [ -d "secrets" ]; then kubectl apply -f secrets/ || true; fi
+          if [ -f "rabbitmq/cluster-operator.yaml" ]; then
+            echo "⚡ Deploying RabbitMQ Cluster Operator..."
+            kubectl apply -f rabbitmq/cluster-operator.yaml || true
+            sleep 10
+          fi
+          if [ -f "rabbitmq/rabbitmq-cluster.yaml" ]; then kubectl apply -f rabbitmq/rabbitmq-cluster.yaml || true; fi
           if [ -d "infra" ]; then kubectl apply -f infra/ || true; fi
           if [ -d "apps" ]; then kubectl apply -f apps/ || true; fi
           if [ -d "ingress" ]; then kubectl apply -f ingress/ || true; fi
