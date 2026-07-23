@@ -64,18 +64,21 @@ spec:
         - name: config-volume
           mountPath: /app/config/application.yml
           subPath: application.yml
+        startupProbe:
+          tcpSocket:
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          failureThreshold: 36
         readinessProbe:
           tcpSocket:
             port: 8080
-          initialDelaySeconds: 15
           periodSeconds: 5
-          failureThreshold: 12
         livenessProbe:
           tcpSocket:
             port: 8080
-          initialDelaySeconds: 60
           periodSeconds: 10
-          failureThreshold: 6
+          failureThreshold: 3
         resources:
           requests:
             memory: "512Mi"
