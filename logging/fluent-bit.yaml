@@ -75,7 +75,7 @@ data:
         Host            elasticsearch-service.default.svc.cluster.local
         Port            9200
         HTTP_User       elastic
-        HTTP_Passwd     ElasticSecret123
+        HTTP_Passwd     ${ELASTIC_PASSWORD}
         Logstash_Format On
         Logstash_Prefix k8s-logs
         Time_Key        @timestamp
@@ -111,6 +111,12 @@ spec:
       containers:
       - name: fluent-bit
         image: cr.fluentbit.io/fluent/fluent-bit:3.0.7
+        env:
+        - name: ELASTIC_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: enterprise-secrets
+              key: elastic-password
         resources:
           limits:
             memory: 100Mi
