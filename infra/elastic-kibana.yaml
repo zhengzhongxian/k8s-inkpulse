@@ -127,5 +127,8 @@ spec:
           name: console
         resources:
           requests:
-            memory: "256Mi"
-            cpu: "50m"
+            memory: "512Mi"
+            cpu: "100m"
+          limits:
+            memory: "1536Mi"
+            cpu: "1000m"
